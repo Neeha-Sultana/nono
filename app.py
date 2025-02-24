@@ -38,11 +38,13 @@ predictor = dlib.shape_predictor(DEST_PATH)
 
 contact_info = {}
 
+
 def eye_aspect_ratio(eye):
     A = distance.euclidean(eye[1], eye[5])
     B = distance.euclidean(eye[2], eye[4])
     C = distance.euclidean(eye[0], eye[3])
     return (A + B) / (2.0 * C)
+
 
 def send_alert():
     """Send an SMS alert via Twilio"""
@@ -51,11 +53,12 @@ def send_alert():
             client.messages.create(
                 body="🚨 Drowsiness detected! Please check on the driver.",
                 from_=TWILIO_PHONE,
-                to=contact_info["phone"]
+                to=contact_info["phone"],
             )
             print("✅ SMS alert sent!")
         except Exception as e:
             print(f"❌ Error sending SMS: {e}")
+
 
 def generate_frames():
     """Live video feed & drowsiness detection."""
@@ -70,29 +73,45 @@ def generate_frames():
 
         for face in faces:
             landmarks = predictor(gray, face)
-            left_eye = [(landmarks.part(n).x, landmarks.part(n).y) for n in range(36, 42)]
-            right_eye = [(landmarks.part(n).x, landmarks.part(n).y) for n in range(42, 48)]
+            left_eye = [
+                (landmarks.part(n).x, landmarks.part(n).y) for n in range(36, 42)
+            ]
+            right_eye = [
+                (landmarks.part(n).x, landmarks.part(n).y) for n in range(42, 48)
+            ]
             avg_EAR = (eye_aspect_ratio(left_eye) + eye_aspect_ratio(right_eye)) / 2.0
 
             if avg_EAR < 0.25:
                 send_alert()
-                cv2.putText(frame, "DROWSY!", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3)
+                cv2.putText(
+                    frame,
+                    "DROWSY!",
+                    (50, 100),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.5,
+                    (0, 0, 255),
+                    3,
+                )
 
-        ret, buffer = cv2.imencode('.jpg', frame)
+        ret, buffer = cv2.imencode(".jpg", frame)
         frame = buffer.tobytes()
 
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        yield (b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
 
     camera.release()
 
-@app.route('/')
+
+@app.route("/")
 def home():
     return render_template("index.html")
 
-@app.route('/video_feed')
+
+@app.route("/video_feed")
 def video_feed():
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(
+        generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame"
+    )
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
